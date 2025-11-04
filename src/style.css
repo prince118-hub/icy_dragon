@@ -1,0 +1,159 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+  background-color: #0a0e1a;
+  color: #ffffff;
+}
+
+#canvas-container {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+}
+
+canvas {
+  display: block;
+}
+
+/* UI Overlay */
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Title Section */
+.title-container {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  text-shadow: 0 0 20px rgba(102, 204, 255, 0.8),
+    0 0 40px rgba(102, 204, 255, 0.4);
+}
+
+.title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #ffffff;
+  margin: 0;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #ffffff 0%, #66ccff 50%, #88ddff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleGlow 3s ease-in-out infinite;
+}
+
+.subtitle {
+  font-size: 1rem;
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  color: #88ccff;
+  margin-top: 10px;
+  opacity: 0.8;
+}
+
+@keyframes titleGlow {
+  0%,
+  100% {
+    text-shadow: 0 0 20px rgba(102, 204, 255, 0.8),
+      0 0 40px rgba(102, 204, 255, 0.4);
+  }
+  50% {
+    text-shadow: 0 0 30px rgba(102, 204, 255, 1),
+      0 0 60px rgba(102, 204, 255, 0.6);
+  }
+}
+
+/* Status Section */
+.status-container {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  min-width: 300px;
+}
+
+.status-text {
+  font-size: 1.1rem;
+  color: #ffffff;
+  padding: 12px 30px;
+  background: rgba(10, 14, 26, 0.85);
+  border: 1px solid rgba(102, 204, 255, 0.3);
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+/* Info Section */
+.info-container {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 30px;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-text {
+  font-size: 0.9rem;
+  color: #88ccff;
+  opacity: 0.7;
+  padding: 8px 16px;
+  background: rgba(10, 14, 26, 0.5);
+  border-radius: 20px;
+  backdrop-filter: blur(5px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .subtitle {
+    font-size: 0.8rem;
+  }
+
+  .info-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .status-text {
+    font-size: 1rem;
+  }
+}
+
+/* Loading Animation */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading {
+  animation: pulse 2s ease-in-out infinite;
+}
