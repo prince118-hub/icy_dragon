@@ -34,16 +34,18 @@ document.getElementById("canvas-container").appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.enablePan = false;
+controls.enableRotate = false;
+controls.enableZoom = false;
+controls.dampingFactor = 0.05;
 controls.target.set(0, 0.5, 0);
-controls.minDistance = 3;
-controls.maxDistance = 20;
-controls.minPolarAngle = Math.PI * 0.2;
-controls.maxPolarAngle = Math.PI * 0.49;
-controls.enabled = true;
+controls.enabled = false;
 
 let userIsOrbiting = false;
-controls.addEventListener("start", () => (userIsOrbiting = true));
-controls.addEventListener("end", () => (userIsOrbiting = false));
+let isDraggingDragon = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let wasDragged = false;
+let canToggleHeroView = true;
 
 // ==================== LIGHTING ====================
 // Ambient light for base visibility
@@ -120,7 +122,9 @@ placeholder.castShadow = true;
 placeholder.receiveShadow = true;
 scene.add(placeholder);
 
-const modelPath = "/model/icy_dragon.glb";
+// Model path works in both web and Electron
+// Using relative path ./model/ instead of /model/ ensures compatibility with both environments
+const modelPath = "./model/icy_dragon.glb";
 
 loader.load(
   modelPath,
@@ -323,9 +327,33 @@ const normalSettings = {
 function onMouseMove(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  // Track if we're actually dragging (movement distance > threshold)
+  if (isDraggingDragon && controls.enabled) {
+    const deltaX = Math.abs(event.clientX - dragStartX);
+    const deltaY = Math.abs(event.clientY - dragStartY);
+    const dragThreshold = 3; // pixels
+
+    if (deltaX > dragThreshold || deltaY > dragThreshold) {
+      wasDragged = true;
+    }
+  }
 }
 
+function onMouseDown(event) {
+  // Removed - no orbit controls needed
+}
+
+function onMouseUp(event) {
+  // Removed - no orbit controls needed
+}
 function onMouseClick(event) {
+  // Only toggle hero view on quick click (not drag), and if allowed
+  if (!canToggleHeroView || wasDragged) {
+    wasDragged = false; // Reset flag
+    return; // Don't toggle
+  }
+
   // Perform raycasting on click
   if (model) {
     raycaster.setFromCamera(mouse, camera);
@@ -335,8 +363,11 @@ function onMouseClick(event) {
       // Toggle Hero View Mode on click
       heroViewMode = !heroViewMode;
 
+      // Play dragon roar and breathing fire
+      playDragonRoar();
+      breatheFire();
+
       if (heroViewMode) {
-        // Dota 2-style hero background - gradient blue
         scene.background = new THREE.Color(0x1a3050);
         scene.fog.density = 0.03;
 
@@ -349,13 +380,20 @@ function onMouseClick(event) {
         glowLight1.intensity = 3.0;
         glowLight2.intensity = 2.5;
 
+        // Hide title and subtitle
+        const titleContainer = document.querySelector(".title-container");
+        if (titleContainer) {
+          titleContainer.style.display = "none";
+        }
+
         // Update UI
         const statusElement = document.getElementById("status");
         if (statusElement) {
-          statusElement.textContent = "🐉 Dragon Hero View - Click to exit";
+          statusElement.textContent = "🐉 Dragon Hero View";
           statusElement.style.color = "#88ddff";
         }
         controls.enabled = false;
+        controls.enableRotate = false;
       } else {
         console.log("🌨️ Returning to Normal View");
 
@@ -371,12 +409,18 @@ function onMouseClick(event) {
         glowLight1.intensity = 2.0;
         glowLight2.intensity = 1.5;
 
+        // Show title and subtitle
+        const titleContainer = document.querySelector(".title-container");
+        if (titleContainer) {
+          titleContainer.style.display = "block";
+        }
+
         const statusElement = document.getElementById("status");
         if (statusElement) {
-          statusElement.textContent = "Hover over dragon to view";
+          statusElement.textContent = "Icy Dragon - 3D Cinematic Experience";
           statusElement.style.color = "#ffffff";
         }
-        controls.enabled = true;
+        controls.enabled = false;
       }
     }
   }
@@ -416,12 +460,19 @@ function onKeyPress(event) {
         glowLight1.intensity = 3.0;
         glowLight2.intensity = 2.5;
 
+        // Hide title and subtitle
+        const titleContainer = document.querySelector(".title-container");
+        if (titleContainer) {
+          titleContainer.style.display = "none";
+        }
+
         const statusElement = document.getElementById("status");
         if (statusElement) {
-          statusElement.textContent = "🐉 Dragon Hero View - Press 'H' to exit";
+          statusElement.textContent = "🐉 Dragon Hero View";
           statusElement.style.color = "#88ddff";
         }
         controls.enabled = false;
+        controls.enableRotate = false;
       } else {
         scene.background = new THREE.Color(0x0a0e1a);
         scene.fog.density = 0.08;
@@ -431,18 +482,27 @@ function onKeyPress(event) {
         glowLight1.intensity = 2.0;
         glowLight2.intensity = 1.5;
 
+        // Show title and subtitle
+        const titleContainer = document.querySelector(".title-container");
+        if (titleContainer) {
+          titleContainer.style.display = "block";
+        }
+
         const statusElement = document.getElementById("status");
         if (statusElement) {
           statusElement.textContent = "Press 'H' for Hero View";
           statusElement.style.color = "#ffffff";
         }
-        controls.enabled = true;
+        controls.enabled = false;
+        controls.autoRotate = true; // Resume auto-rotation
       }
     }
   }
 }
 
 window.addEventListener("mousemove", onMouseMove);
+window.addEventListener("mousedown", onMouseDown);
+window.addEventListener("mouseup", onMouseUp);
 window.addEventListener("click", onMouseClick);
 window.addEventListener("dblclick", onDoubleClick);
 window.addEventListener("keydown", onKeyPress);
@@ -459,41 +519,35 @@ let currentCameraHeight = baseCameraHeight;
 
 function updateCamera(time) {
   if (heroViewMode) {
-    // Hero View Mode: Static camera like Dota 2 hero view
+    // Hero View: Fixed camera angle
     const targetX = heroViewSettings.cameraPosition.x;
     const targetZ = heroViewSettings.cameraPosition.z;
     const targetY = heroViewSettings.cameraPosition.y;
 
-    // Smooth transition to hero view position
     camera.position.x += (targetX - camera.position.x) * 0.08;
     camera.position.y += (targetY - camera.position.y) * 0.08;
     camera.position.z += (targetZ - camera.position.z) * 0.08;
 
-    // Look directly at dragon center
     cameraTarget.set(0, 0.5, 0);
     camera.lookAt(cameraTarget);
   } else {
-    // Normal Mode: Smooth orbital movement influenced by scroll (paused while user orbits)
+    // Normal Mode: Auto-rotation
     const eased = easeInOut(scrollProgress);
     currentCameraRadius = baseCameraRadius * (1 - 0.35 * eased);
     currentCameraHeight = baseCameraHeight + 1.2 * eased;
 
-    if (!userIsOrbiting && controls.enabled) {
-      cameraAngle = time * cameraSpeed;
+    cameraAngle = time * cameraSpeed;
 
-      const targetX = Math.sin(cameraAngle) * currentCameraRadius;
-      const targetZ = Math.cos(cameraAngle) * currentCameraRadius;
-      const targetY = currentCameraHeight + Math.sin(time * 0.0002) * 0.5;
+    const targetX = Math.sin(cameraAngle) * currentCameraRadius;
+    const targetZ = Math.cos(cameraAngle) * currentCameraRadius;
+    const targetY = currentCameraHeight + Math.sin(time * 0.0002) * 0.5;
 
-      // Smooth camera position interpolation
-      camera.position.x += (targetX - camera.position.x) * 0.02;
-      camera.position.y += (targetY - camera.position.y) * 0.02;
-      camera.position.z += (targetZ - camera.position.z) * 0.02;
+    camera.position.x += (targetX - camera.position.x) * 0.02;
+    camera.position.y += (targetY - camera.position.y) * 0.02;
+    camera.position.z += (targetZ - camera.position.z) * 0.02;
 
-      // Look at dragon with slight variation
-      cameraTarget.y = Math.sin(time * 0.0003) * 0.3;
-      controls.target.lerp(cameraTarget, 0.1);
-    }
+    cameraTarget.y = Math.sin(time * 0.0003) * 0.3;
+    controls.target.lerp(cameraTarget, 0.1);
     camera.lookAt(controls.target);
   }
 }
@@ -602,8 +656,8 @@ function updateRaycaster() {
       if (!heroViewMode) {
         const statusElement = document.getElementById("status");
         if (statusElement) {
-          statusElement.textContent = "🐉 Click dragon to enter Hero View";
-          statusElement.style.color = "#88ccff";
+          statusElement.textContent = "Icy Dragon - 3D Cinematic Experience";
+          statusElement.style.color = "#ffffff";
         }
       }
     } else {
@@ -616,8 +670,7 @@ function updateRaycaster() {
 
         const statusElement = document.getElementById("status");
         if (statusElement) {
-          statusElement.textContent =
-            "Press 'H' for Hero View or hover/click dragon";
+          statusElement.textContent = "Press 'H' for Hero View";
           statusElement.style.color = "#ffffff";
         }
       }

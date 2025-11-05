@@ -1,18 +1,78 @@
 {
-  "name": "ITE 18 Activity 2.1 Lights",
+  "name": "icy-dragon",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "1.0.0",
+  "description": "Icy Dragon - 3D Interactive Application",
+  "author": "Your Name",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "dev:electron": "set NODE_ENV=development && electron .",
+    "build": "vite build",
+    "build:electron": "vite build && electron .",
+    "dist": "vite build && electron-builder --win --x64",
+    "dist:portable": "vite build && electron-builder --win portable --x64",
+    "preview": "vite preview",
+    "start": "electron ."
   },
   "devDependencies": {
-    "vite": "^4.0.4"
+    "vite": "^4.0.4",
+    "electron": "^24.0.0",
+    "electron-builder": "^23.6.0"
   },
   "dependencies": {
     "gsap": "^3.13.0",
     "lil-gui": "^0.17.0",
     "three": "^0.148.0"
+  },
+  "build": {
+    "appId": "com.icydragon.app",
+    "productName": "Icy Dragon",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Icy Dragon"
+    },
+    "portable": {
+      "artifactName": "IcyDragon-Portable.exe"
+    },
+    "extraResources": [
+      {
+        "from": "public/model",
+        "to": "model",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }

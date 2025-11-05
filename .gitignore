@@ -1,5 +1,3 @@
-.vercel
-
 # Node dependencies
 node_modules/
 
@@ -14,6 +12,10 @@ yarn-error.log*
 # Build output
 dist/
 .vite/
+
+# Electron build output
+release/
+out/
 
 # Vercel
 .vercel
@@ -33,3 +35,18 @@ Thumbs.db
 *.local
 coverage/
 /.cache
+
+# Electron-builder output
+*.blockmap
+*.zip
+*.dmg
+*.snap
+*.AppImage
+*.deb
+*.rpm
+*.exe
+*.msi
+
+# Package lock files (optional - uncomment if you want to exclude)
+# package-lock.json
+# yarn.lock
