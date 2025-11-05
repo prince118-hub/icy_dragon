@@ -44,7 +44,6 @@ coverage/
 *.AppImage
 *.deb
 *.rpm
-*.exe
 *.msi
 
 # Package lock files (optional - uncomment if you want to exclude)
