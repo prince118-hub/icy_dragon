@@ -18,16 +18,19 @@
 
       <div class="status-container">
         <p id="status" class="status-text">
-          Press 'H' for Hero View or hover/click dragon
+          Press 'H' for Hero View • Scroll to animate scene
         </p>
       </div>
 
       <div class="info-container">
         <p class="info-text">⌨️ Press 'H' key for Hero View</p>
         <p class="info-text">🖱️ Click dragon to toggle view</p>
-        <p class="info-text">🌨️ Experiencing a frozen storm</p>
+        <p class="info-text">🧭 Scroll to explore the atmosphere</p>
       </div>
     </div>
+
+    <!-- Invisible scroll proxy to drive scene animations (adjust height for duration) -->
+    <div id="scroll-proxy" aria-hidden="true"></div>
 
     <script type="module" src="script.js"></script>
   </body>
