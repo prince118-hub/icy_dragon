@@ -1,5 +1,6 @@
 ﻿import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 // ==================== SCENE SETUP ====================
 const scene = new THREE.Scene();
@@ -28,6 +29,21 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 document.getElementById("canvas-container").appendChild(renderer.domElement);
+
+// ==================== ORBIT CONTROLS ====================
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.target.set(0, 0.5, 0);
+controls.minDistance = 3;
+controls.maxDistance = 20;
+controls.minPolarAngle = Math.PI * 0.2;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.enabled = true;
+
+let userIsOrbiting = false;
+controls.addEventListener("start", () => (userIsOrbiting = true));
+controls.addEventListener("end", () => (userIsOrbiting = false));
 
 // ==================== LIGHTING ====================
 // Ambient light for base visibility
@@ -66,6 +82,19 @@ scene.add(glowLight1);
 const glowLight2 = new THREE.PointLight(0x88ddff, 1.5, 15);
 glowLight2.position.set(5, 3, 2);
 scene.add(glowLight2);
+
+// ==================== GROUND PLANE ====================
+const groundGeometry = new THREE.PlaneGeometry(400, 400);
+const groundMaterial = new THREE.MeshStandardMaterial({
+  color: 0x0d1b2a,
+  roughness: 0.6,
+  metalness: 0.1,
+});
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.01;
+ground.receiveShadow = true;
+scene.add(ground);
 
 // ==================== DRAGON MODEL ====================
 const loader = new GLTFLoader();
@@ -264,17 +293,26 @@ const sparkleMaterial = new THREE.PointsMaterial({
 const sparkles = new THREE.Points(sparkleGeometry, sparkleMaterial);
 scene.add(sparkles);
 
-// ==================== RAYCASTER SETUP ====================
+// ==================== RAYCASTER & SCROLL SETUP ====================
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let isHoveringDragon = false;
-let heroViewMode = false; // Dota 2-style hero view
+let heroViewMode = false;
+let hoveredMesh = null;
+let hoveredPrevEmissive = null;
+let hoveredPrevEmissiveIntensity = 0;
+
+// Scroll state (0.0 - 1.0)
+let scrollProgress = 0;
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeInOut = (t) =>
+  t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
 // Hero view settings (like Dota 2)
 const heroViewSettings = {
-  background: new THREE.Color(0x2a3f5f), // Static blue-grey background
+  background: new THREE.Color(0x2a3f5f),
   cameraPosition: { x: 0, y: 1.2, z: 4.5 },
-  fogDensity: 0.02, // Less fog in hero view
+  fogDensity: 0.02,
 };
 
 const normalSettings = {
@@ -317,6 +355,7 @@ function onMouseClick(event) {
           statusElement.textContent = "🐉 Dragon Hero View - Click to exit";
           statusElement.style.color = "#88ddff";
         }
+        controls.enabled = false;
       } else {
         console.log("🌨️ Returning to Normal View");
 
@@ -337,9 +376,18 @@ function onMouseClick(event) {
           statusElement.textContent = "Hover over dragon to view";
           statusElement.style.color = "#ffffff";
         }
+        controls.enabled = true;
       }
     }
   }
+}
+
+// Scroll handler drives scene animation via scrollProgress
+function onScroll() {
+  const doc = document.documentElement;
+  const maxScroll = Math.max(1, doc.scrollHeight - window.innerHeight);
+  const raw = doc.scrollTop || window.scrollY || 0;
+  scrollProgress = clamp01(raw / maxScroll);
 }
 
 // Double-click for fullscreen
@@ -373,6 +421,7 @@ function onKeyPress(event) {
           statusElement.textContent = "🐉 Dragon Hero View - Press 'H' to exit";
           statusElement.style.color = "#88ddff";
         }
+        controls.enabled = false;
       } else {
         scene.background = new THREE.Color(0x0a0e1a);
         scene.fog.density = 0.08;
@@ -387,6 +436,7 @@ function onKeyPress(event) {
           statusElement.textContent = "Press 'H' for Hero View";
           statusElement.style.color = "#ffffff";
         }
+        controls.enabled = true;
       }
     }
   }
@@ -396,13 +446,16 @@ window.addEventListener("mousemove", onMouseMove);
 window.addEventListener("click", onMouseClick);
 window.addEventListener("dblclick", onDoubleClick);
 window.addEventListener("keydown", onKeyPress);
+window.addEventListener("scroll", onScroll, { passive: true });
 
 // ==================== CAMERA ANIMATION ====================
 const cameraTarget = new THREE.Vector3(0, 0, 0);
 let cameraAngle = 0;
-const cameraRadius = 8;
-const cameraHeight = 2;
+const baseCameraRadius = 8;
+const baseCameraHeight = 2;
 const cameraSpeed = 0.0003;
+let currentCameraRadius = baseCameraRadius;
+let currentCameraHeight = baseCameraHeight;
 
 function updateCamera(time) {
   if (heroViewMode) {
@@ -420,21 +473,28 @@ function updateCamera(time) {
     cameraTarget.set(0, 0.5, 0);
     camera.lookAt(cameraTarget);
   } else {
-    // Normal Mode: Smooth orbital movement
-    cameraAngle = time * cameraSpeed;
+    // Normal Mode: Smooth orbital movement influenced by scroll (paused while user orbits)
+    const eased = easeInOut(scrollProgress);
+    currentCameraRadius = baseCameraRadius * (1 - 0.35 * eased);
+    currentCameraHeight = baseCameraHeight + 1.2 * eased;
 
-    const targetX = Math.sin(cameraAngle) * cameraRadius;
-    const targetZ = Math.cos(cameraAngle) * cameraRadius;
-    const targetY = cameraHeight + Math.sin(time * 0.0002) * 0.5;
+    if (!userIsOrbiting && controls.enabled) {
+      cameraAngle = time * cameraSpeed;
 
-    // Smooth camera position interpolation
-    camera.position.x += (targetX - camera.position.x) * 0.02;
-    camera.position.y += (targetY - camera.position.y) * 0.02;
-    camera.position.z += (targetZ - camera.position.z) * 0.02;
+      const targetX = Math.sin(cameraAngle) * currentCameraRadius;
+      const targetZ = Math.cos(cameraAngle) * currentCameraRadius;
+      const targetY = currentCameraHeight + Math.sin(time * 0.0002) * 0.5;
 
-    // Look at dragon with slight variation
-    cameraTarget.y = Math.sin(time * 0.0003) * 0.3;
-    camera.lookAt(cameraTarget);
+      // Smooth camera position interpolation
+      camera.position.x += (targetX - camera.position.x) * 0.02;
+      camera.position.y += (targetY - camera.position.y) * 0.02;
+      camera.position.z += (targetZ - camera.position.z) * 0.02;
+
+      // Look at dragon with slight variation
+      cameraTarget.y = Math.sin(time * 0.0003) * 0.3;
+      controls.target.lerp(cameraTarget, 0.1);
+    }
+    camera.lookAt(controls.target);
   }
 }
 
@@ -465,14 +525,17 @@ function updateDragonAnimation(time) {
 function updateSnowParticles() {
   const positions = snow.geometry.attributes.position.array;
   const time = Date.now() * 0.001;
+  const speedFactor = 1 + scrollProgress * 0.8;
 
   for (let i = 0; i < snowCount; i++) {
     const i3 = i * 3;
 
     // Apply velocity with wind effect
-    positions[i3] += snowVelocities[i].x + Math.sin(time + i) * 0.001;
-    positions[i3 + 1] += snowVelocities[i].y;
-    positions[i3 + 2] += snowVelocities[i].z + Math.cos(time + i) * 0.001;
+    positions[i3] +=
+      (snowVelocities[i].x + Math.sin(time + i) * 0.001) * speedFactor;
+    positions[i3 + 1] += snowVelocities[i].y * speedFactor;
+    positions[i3 + 2] +=
+      (snowVelocities[i].z + Math.cos(time + i) * 0.001) * speedFactor;
 
     // Reset particles that fall too low
     if (positions[i3 + 1] < -10) {
@@ -560,20 +623,53 @@ function updateRaycaster() {
       }
     }
   }
+
+  // Emissive highlight on the topmost intersected mesh
+  const newHovered = intersects.length > 0 ? intersects[0].object : null;
+  if (newHovered !== hoveredMesh) {
+    // restore previous
+    if (
+      hoveredMesh &&
+      hoveredMesh.material &&
+      "emissive" in hoveredMesh.material
+    ) {
+      hoveredMesh.material.emissive.set(hoveredPrevEmissive || 0x000000);
+      hoveredMesh.material.emissiveIntensity = hoveredPrevEmissiveIntensity;
+    }
+    hoveredMesh = null;
+
+    if (
+      newHovered &&
+      newHovered.material &&
+      "emissive" in newHovered.material
+    ) {
+      hoveredMesh = newHovered;
+      hoveredPrevEmissive = newHovered.material.emissive.clone();
+      hoveredPrevEmissiveIntensity = newHovered.material.emissiveIntensity || 1;
+      newHovered.material.emissive.setHex(0x66aaff);
+      newHovered.material.emissiveIntensity = 1.5;
+    }
+  }
 }
 
 // ==================== DYNAMIC LIGHTING ====================
 function updateDynamicLighting(time) {
   // Pulsing glow lights
-  glowLight1.intensity = 2 + Math.sin(time * 0.001) * 0.5;
-  glowLight2.intensity = 1.5 + Math.cos(time * 0.0012) * 0.4;
+  const eased = easeInOut(scrollProgress);
+  glowLight1.intensity = 2 + Math.sin(time * 0.001) * 0.5 + 0.8 * eased;
+  glowLight2.intensity = 1.5 + Math.cos(time * 0.0012) * 0.4 + 0.6 * eased;
 
   // Subtle light movement
   glowLight1.position.x = -5 + Math.sin(time * 0.0005) * 2;
   glowLight2.position.z = 2 + Math.cos(time * 0.0006) * 1.5;
 
   // Sparkle effect animation
-  sparkleMaterial.opacity = 0.4 + Math.sin(time * 0.002) * 0.3;
+  sparkleMaterial.opacity = 0.4 + Math.sin(time * 0.002) * 0.3 + 0.2 * eased;
+
+  // Fog density influenced by scroll (unless in hero view)
+  if (!heroViewMode) {
+    scene.fog.density = THREE.MathUtils.lerp(0.08, 0.03, eased);
+  }
 }
 
 // ==================== ANIMATION LOOP ====================
@@ -584,6 +680,12 @@ function animate() {
 
   const time = Date.now();
   const delta = clock.getDelta();
+
+  // Apply subtle scroll-driven sway to dragon scale/rotation (non-hero mode)
+  if (!heroViewMode && model) {
+    const eased = easeInOut(scrollProgress);
+    model.rotation.y += 0.0005 * (1 + eased);
+  }
 
   // Update all systems
   updateCamera(time);
@@ -599,6 +701,7 @@ function animate() {
   }
 
   // Render scene
+  controls.update();
   renderer.render(scene, camera);
 }
 
